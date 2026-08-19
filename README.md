@@ -27,8 +27,7 @@ c) Running the ntuple production
 
 ### a) Configuration of the setup
 
-Running `. env.sh` ensures a consistent set of program versions is used. Furthermore it will check the availability of a VOMS proxy and copy it to a certain location in order to use it in HTCondor. It will also clone the latest version of the jsonpog correctionlib database in order to have the pileup weights available. Once the jsonpog repo is available, newer versions are not pulled automatically. Please make sure to do it yourself occasionally.
-In the `inputs/config` directory, you can add new eras. Please be sure to use a consistent nomenclature and add all necessary information, i.e. datasets, golden json, and labels.
+Running `. env.sh` ensures a consistent set of program versions is used. Furthermore it will check the availability of a VOMS proxy and copy it to a certain location in order to use it in HTCondor. In the `inputs/config` directory, you can add new eras. Please be sure to use a consistent nomenclature and add all necessary information, i.e. datasets, golden json, and labels.
 
 ### b) Collecting the data files
 
@@ -42,7 +41,7 @@ This will query the files of the datasets in the `inputs/config/datasets.json` f
 
 The ntuple production takes the files in `inputs/nanoAODs/{year}.json`, filters out the data events fulfilling the golden lumi json, and applies a selection to the Z->mumu phase space to both data and simulation. The standard version will construct condor jobs and print how to start the jobs. You can also run locally by providing the option `-j 8` for 8 parallel processes:
 
-`pyhton3 get_xy_corrs.py -Y 2022_Summer22 -S`
+`python3 get_xy_corrs.py -Y 2022_Summer22 -S`
 
 The snapshots are automatically saved in your EOS userspace. You can change that in the corresponding entry in `inputs/config/paths.py`.
 

@@ -18,11 +18,6 @@ else
     fi
 fi
 
-if [ ! -d inputs/jsonpog ]; then
-    git clone https://gitlab.cern.ch/cms-nanoAOD/jsonpog-integration.git inputs/jsonpog
-fi
-
-
 CopyProxy(){
     mkdir -p ~/proxy
     ID=$(id -u)

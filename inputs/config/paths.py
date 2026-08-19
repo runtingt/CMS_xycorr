@@ -9,6 +9,14 @@ def get_paths(args):
     eos_path = home_path.replace('afs/cern.ch', 'eos')
     uid = os.getuid()
 
+    pu_jsons = {
+        "2022_Summer22": "/cvmfs/cms-griddata.cern.ch/cat/metadata/LUM/Run3-22CDSep23-Summer22-NanoAODv12/latest/puWeights.json.gz",
+        "2022_Summer22EE": "/cvmfs/cms-griddata.cern.ch/cat/metadata/LUM/Run3-22EFGSep23-Summer22EE-NanoAODv12/latest/puWeights.json.gz",
+        "2023_Summer23": "/cvmfs/cms-griddata.cern.ch/cat/metadata/LUM/Run3-23CSep23-Summer23-NanoAODv12/latest/puWeights.json.gz",
+        "2023_Summer23BPix": "/cvmfs/cms-griddata.cern.ch/cat/metadata/LUM/Run3-23DSep23-Summer23BPix-NanoAODv12/latest/puWeights.json.gz",
+        "2024_Summer24": "/cvmfs/cms-griddata.cern.ch/cat/metadata/LUM/Run3-24CDEReprocessingFGHIPrompt-Summer24-NanoAODv15/latest/puWeights_BCDEFGHI.json.gz"
+    }
+
     paths = {
         'datasets':f'inputs/config/datasets.json',
         'redirector': 'root://cms-xrd-global.cern.ch//',
@@ -17,7 +25,7 @@ def get_paths(args):
         'corr_dir': f"results/corrections/{add_path}/",
         'hist_dir': f"results/hists/{add_path}/",
         'condor_dir': f"results/condor/{add_path}/",
-        'pu_json': f'inputs/jsonpog/POG/LUM/{args.year}/puWeights.json.gz',
+        'pu_json': pu_jsons[args.year],
         'snap_dir': f"{eos_path}/CMS_xycorr/snapshots/{add_path}/",
         'proxy_path': f'{home_path}/proxy/x509up_u{uid}'
     }
