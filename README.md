@@ -81,7 +81,8 @@ The results should show an almost flat MET phi distribution after correction.
 
 ## Further options
 
-The types of missing transverse momentum that are investigated can be controlled with the option `--met MET,PuppiMET`. They must be defined in the snapshot process.
+The types of missing transverse momentum that are investigated can be controlled with the option `--met MET,PuppiMET`. They must be defined in the snapshot process. NB that for v15 there is no `MET` field in the NANOAOD, so use `--met PuppiMET` instead.
+
 The type of pileup can be investigated with the option `--pileup PV_npvsGood`.
 
 A version name can be given to the currently used correction via `-V v0`.
@@ -89,3 +90,43 @@ A version name can be given to the currently used correction via `-V v0`.
 Debug output can be printed by adding `--debug`.
 
 The correction can be performed only on data or MC with the option `--process MC,DATA`.
+
+
+## Troubleshooting
+
+If you encounter a crash like
+
+```bash
+python3 get_xy_corrs.py -Y 2024_Summer24 --prep
+2026-08-19 12:03:52,876 - INFO - Main script started for 2024_Summer24, MET,PuppiMET,CaloMET,ChsMET,DeepMETResolutionTune,DeepMETResponseTune,RawMET,RawPuppiMET,TkMET, and DATA,MC.
+2026-08-19 12:03:52,876 - INFO - Starting das queries.
+Python path configuration:
+  PYTHONHOME = '/cvmfs/sft.cern.ch/lcg/releases/Python/3.9.12-9a1bc/x86_64-el9-gcc11-opt'
+  PYTHONPATH = (not set)
+  program name = '/usr/bin/python3'
+  isolated = 0
+  environment = 1
+  user site = 1
+  import site = 1
+  sys._base_executable = '/usr/bin/python3'
+  sys.base_prefix = '/cvmfs/sft.cern.ch/lcg/releases/Python/3.9.12-9a1bc/x86_64-el9-gcc11-opt'
+  sys.base_exec_prefix = '/cvmfs/sft.cern.ch/lcg/releases/Python/3.9.12-9a1bc/x86_64-el9-gcc11-opt'
+  sys.platlibdir = 'lib64'
+  sys.executable = '/usr/bin/python3'
+  sys.prefix = '/cvmfs/sft.cern.ch/lcg/releases/Python/3.9.12-9a1bc/x86_64-el9-gcc11-opt'
+  sys.exec_prefix = '/cvmfs/sft.cern.ch/lcg/releases/Python/3.9.12-9a1bc/x86_64-el9-gcc11-opt'
+  sys.path = [
+    '/cvmfs/sft.cern.ch/lcg/releases/Python/3.9.12-9a1bc/x86_64-el9-gcc11-opt/lib64/python39.zip',
+    '/cvmfs/sft.cern.ch/lcg/releases/Python/3.9.12-9a1bc/x86_64-el9-gcc11-opt/lib64/python3.9',
+    '/cvmfs/sft.cern.ch/lcg/releases/Python/3.9.12-9a1bc/x86_64-el9-gcc11-opt/lib64/python3.9/lib-dynload',
+  ]
+Fatal Python error: init_fs_encoding: failed to get the Python codec of the filesystem encoding
+Python runtime state: core initialized
+ModuleNotFoundError: No module named 'encodings'
+```
+
+then try
+
+```bash
+env -u PYTHONHOME python3 get_xy_corrs.py -Y 2024_Summer24 --prep
+```

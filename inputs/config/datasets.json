@@ -61,5 +61,32 @@
                 "/DYto2L-2Jets_MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v2-v3/NANOAODSIM"
             ]
         }
+    },
+    "2024_Summer24": {
+        "DATA": {
+            "names": [
+                "/Muon0/Run2024C-MINIv6NANOv15-v1/NANOAOD",
+                "/Muon1/Run2024C-MINIv6NANOv15-v1/NANOAOD",
+                "/Muon0/Run2024D-MINIv6NANOv15-v1/NANOAOD",
+                "/Muon1/Run2024D-MINIv6NANOv15-v1/NANOAOD",
+                "/Muon0/Run2024E-MINIv6NANOv15-v1/NANOAOD",
+                "/Muon1/Run2024E-MINIv6NANOv15-v1/NANOAOD",
+                "/Muon0/Run2024F-MINIv6NANOv15-v1/NANOAOD",
+                "/Muon1/Run2024F-MINIv6NANOv15-v1/NANOAOD",
+                "/Muon0/Run2024G-MINIv6NANOv15-v1/NANOAOD",
+                "/Muon1/Run2024G-MINIv6NANOv15-v2/NANOAOD",
+                "/Muon0/Run2024H-MINIv6NANOv15-v1/NANOAOD",
+                "/Muon1/Run2024H-MINIv6NANOv15-v2/NANOAOD",
+                "/Muon0/Run2024I-MINIv6NANOv15-v1/NANOAOD",
+                "/Muon1/Run2024I-MINIv6NANOv15-v1/NANOAOD",
+                "/Muon0/Run2024I-MINIv6NANOv15_v2-v1/NANOAOD",
+                "/Muon1/Run2024I-MINIv6NANOv15_v2-v1/NANOAOD"
+            ]
+        },
+        "MC": {
+            "names": [
+                "/DYto2Mu-2Jets_Bin-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v6/NANOAODSIM"
+            ]
+        }
     }
 }

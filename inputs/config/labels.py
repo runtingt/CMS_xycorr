@@ -16,14 +16,19 @@ def get_labels(year):
         '2023_Summer23BPix': {
             'DATA': '9.5fb^{-1} (13.6 TeV)',
             'MC': '(13.6 TeV)',
-        }
+        },
+        '2024_Summer24': {
+            'DATA': '109.82fb^{-1} (13.6 TeV)',
+            'MC': '(13.6 TeV)',
+        },
     }
 
     datasetlabels = {
         '2022_Summer22': '2022 preEE',
         '2022_Summer22EE': '2022 postEE',
         '2023_Summer23': '2023 preBPix',
-        '2023_Summer23BPix': '2023 postBPix'
+        '2023_Summer23BPix': '2023 postBPix',
+        '2024_Summer24': '2024',
     }
 
     axislabels = {
