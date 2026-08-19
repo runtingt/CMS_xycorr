@@ -5,7 +5,7 @@ import glob
 logger = logging.getLogger(__name__)
 
 
-def setup_job(condor_dir, dtmc, year):
+def setup_job(condor_dir, dtmc, year, met):
     logger.info("Setting up the job script")
     # setup condor job script
     path = os.getcwd()
@@ -15,7 +15,7 @@ def setup_job(condor_dir, dtmc, year):
         "voms-proxy-info -all -file $2 \n"\
         f"cd {path} \n"\
         f"source env.sh \n"\
-        f"python get_xy_corrs.py -S --condor $1 --process {dtmc} --year {year} --debug"
+        f"python get_xy_corrs.py -S --condor $1 --process {dtmc} --year {year} --met {met} --debug"
 
     log_dir = f'{condor_dir}{dtmc}/logs/'
 

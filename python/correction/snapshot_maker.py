@@ -177,7 +177,7 @@ def make_snapshot(
 
         elif nthreads==0:
             # setup condor job script
-            condor.setup_job(condor_dir, dtmc, year)
+            condor.setup_job(condor_dir, dtmc, year, ','.join(mets))
 
             # setup condor submit file
             condor.setup_condor_lxplus(
