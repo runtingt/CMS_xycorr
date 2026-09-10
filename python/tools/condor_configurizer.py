@@ -15,14 +15,14 @@ def setup_job(condor_dir, dtmc, year, met):
         "voms-proxy-info -all -file $2 \n"\
         f"cd {path} \n"\
         f"source env.sh \n"\
-        f"python get_xy_corrs.py -S --condor $1 --process {dtmc} --year {year} --met {met} --debug"
+        f"python get_xy_corrs.py -S --condor $1 --processes {dtmc} --year {year} --met {met} --debug"
 
     log_dir = f'{condor_dir}{dtmc}/logs/'
 
     # first remove directory with old logs
     if os.path.exists(log_dir):
         remove = input("Remove old log files? (y/n)")
-        if remove:
+        if remove.strip().lower() == "y":
             shutil.rmtree(log_dir)
 
     # then create new
