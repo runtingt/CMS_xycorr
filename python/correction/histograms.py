@@ -6,6 +6,18 @@ from glob import glob
 logger = logging.getLogger(__name__)
 
 
+def _enable_implicit_mt(jobs):
+    if jobs <= 1:
+        return
+    if not ROOT.IsImplicitMTEnabled():
+        ROOT.EnableImplicitMT(jobs)
+    elif ROOT.GetThreadPoolSize() != jobs:
+        logger.warning(
+            "ROOT implicit MT is already configured with %d threads; "
+            "requested %d.", ROOT.GetThreadPoolSize(), jobs,
+        )
+
+
 def check_snapshots(snap_dir, datamc):
     '''
     Check whether produced snapshots are usable.
@@ -106,16 +118,13 @@ def make_hists(
     datamc (list): List of datasets to process (data / mc).
     """
 
-    if jobs > 1:
-        ROOT.EnableImplicitMT(jobs)
+    _enable_implicit_mt(jobs)
 
     for dtmc in datamc:
         n = max(jobs, 1)
         logger.info(
             f"Starting histogram production for {dtmc} with {n} threads."
         )
-
-        is_data = (dtmc=='DATA')
 
         hists = {}
 
@@ -144,6 +153,23 @@ def make_hists(
                             "puWeight"+variation
                         )
                         hists[f'{pu}_{var}_puweight{variation}'] = h
+
+                        profile_name = (
+                            f'{pu}_{var}_puweight{variation}_profile'
+                        )
+                        profile = rdf.Profile1D(
+                            (
+                                profile_name,
+                                '',
+                                hbins['pileup'][2],
+                                hbins['pileup'][0],
+                                hbins['pileup'][1],
+                            ),
+                            pu,
+                            var,
+                            "puWeight"+variation,
+                        )
+                        hists[profile_name] = profile
 
         rfile = hist_dir+dtmc+'.root'
         hfile = ROOT.TFile(rfile, "recreate")

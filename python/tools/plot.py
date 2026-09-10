@@ -14,7 +14,8 @@ def plot_2dim(
         lumi = '2022, 13.6 TeV',
         drawoption='COLZ',
         lines = False,
-        results = ["", ""]
+        results = ["", ""],
+        profile = None,
     ):
     c = ROOT.TCanvas("c", '', 800, 600)
     ROOT.gROOT.SetBatch(1)
@@ -57,7 +58,7 @@ def plot_2dim(
     stats.Draw("SAME")
 
     if lines:
-        prof = h.ProfileX("prof", 0, 200)
+        prof = profile if profile is not None else h.ProfileX("prof", 0, 200)
         prof.SetLineWidth(2)
         prof.SetLineColor(ROOT.kBlack)
         prof.Draw("same")
