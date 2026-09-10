@@ -7,14 +7,13 @@ def get_paths(args):
 
     home_path = os.path.expanduser("~")
     eos_path = home_path.replace('afs/cern.ch', 'eos')
-    uid = os.getuid()
 
     pu_jsons = {
         "2022_Summer22": "/cvmfs/cms-griddata.cern.ch/cat/metadata/LUM/Run3-22CDSep23-Summer22-NanoAODv12/latest/puWeights.json.gz",
         "2022_Summer22EE": "/cvmfs/cms-griddata.cern.ch/cat/metadata/LUM/Run3-22EFGSep23-Summer22EE-NanoAODv12/latest/puWeights.json.gz",
         "2023_Summer23": "/cvmfs/cms-griddata.cern.ch/cat/metadata/LUM/Run3-23CSep23-Summer23-NanoAODv12/latest/puWeights.json.gz",
         "2023_Summer23BPix": "/cvmfs/cms-griddata.cern.ch/cat/metadata/LUM/Run3-23DSep23-Summer23BPix-NanoAODv12/latest/puWeights.json.gz",
-        "2024_Summer24": "/cvmfs/cms-griddata.cern.ch/cat/metadata/LUM/Run3-24CDEReprocessingFGHIPrompt-Summer24-NanoAODv15/latest/puWeights_CDEFGHI.json.gz"
+        "2024_Summer24": "/cvmfs/cms-griddata.cern.ch/cat/metadata/LUM/Run3-24CDEReprocessingFGHIPrompt-Summer24-NanoAODv15/latest/puWeights_CDEFGHI.json.gz",
     }
 
     paths = {
@@ -27,26 +26,17 @@ def get_paths(args):
         'condor_dir': f"results/condor/{add_path}/",
         'pu_json': pu_jsons[args.year],
         'snap_dir': f"{eos_path}/CMS_xycorr/snapshots/{add_path}/",
-        'proxy_path': f'{home_path}/proxy/x509up_u{uid}'
-    }
-
-    if not os.path.exists(paths["proxy_path"]):
-        continue_input = input(
-            f"The proxy was not found in {paths['proxy_path']}. "
-            "Problems may occur when running the ntuple production steps. "
-            "Continue anyway? (y/n)"
+        'proxy_path': os.environ.get(
+            'X509_USER_PROXY', f'{home_path}/proxy/x509up_u{os.getuid()}'
         )
-        if continue_input != 'y':
-            print("Break!")
-            sys.exit(1)
-
+    }
 
     golden_jsons = {
         "2022_Summer22": "/eos/user/c/cmsdqm/www/CAF/certification/Collisions22/Cert_Collisions2022_355100_362760_Golden.json",
         "2022_Summer22EE": "/eos/user/c/cmsdqm/www/CAF/certification/Collisions22/Cert_Collisions2022_355100_362760_Golden.json",
         "2023_Summer23": "/eos/user/c/cmsdqm/www/CAF/certification/Collisions23/Cert_Collisions2023_366442_370790_Golden.json",
         "2023_Summer23BPix": "/eos/user/c/cmsdqm/www/CAF/certification/Collisions23/Cert_Collisions2023_366442_370790_Golden.json",
-        "2024_Summer24": "/eos/user/c/cmsdqm/www/CAF/certification/Collisions24/Cert_Collisions2024_378981_386951_Golden.json"
+        "2024_Summer24": "/eos/user/c/cmsdqm/www/CAF/certification/Collisions24/Cert_Collisions2024_378981_386951_Golden.json",
     }
 
     try:
