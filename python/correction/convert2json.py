@@ -2,14 +2,12 @@ import ROOT
 import json
 import correctionlib.schemav2 as cs
 import correctionlib
-import numpy as np
 import logging
+import math
 
 logger = logging.getLogger(__name__)
 
 correctionlib.register_pyroot_binding()
-
-ROOT.EnableImplicitMT(24)
 
 
 def formula_expressions():
@@ -18,13 +16,13 @@ def formula_expressions():
     pt_y = "(x * sin(y) - ([2] * z + [3]))"
 
     sigma_pt_x = "sqrt("\
-            f"pow({pt_x} * [4], 2) + "\
+            "pow(z * [4], 2) + "\
             f"pow([5], 2) +"\
-            f"2 * {pt_x} * [4] * [5] * [6])"
+            "2 * z * [6])"
     sigma_pt_y = "sqrt("\
-            f"pow({pt_y} * [7], 2) + "\
+            "pow(z * [7], 2) + "\
             f"pow([8], 2) +"\
-            f"2 * {pt_y} * [7] * [8] * [9])"
+            "2 * z * [9])"
 
     pt_x_up = f"{pt_x} + {sigma_pt_x}"
     pt_x_dn = f"{pt_x} - {sigma_pt_x}"
@@ -65,6 +63,31 @@ def formula_expressions():
 def formula_object(paramsx, paramsy, expr):
     # last layer of correctionlib object
 
+    for component, parameters in (("x", paramsx), ("y", paramsy)):
+        required = ("m", "c", "m_stat", "c_stat", "covariance")
+        values = [parameters[key] for key in required]
+        if not all(math.isfinite(value) for value in values):
+            raise ValueError(
+                f"The {component} fit contains non-finite parameters."
+            )
+        if parameters["m_stat"] < 0 or parameters["c_stat"] < 0:
+            raise ValueError(
+                f"The {component} fit contains a negative uncertainty."
+            )
+        determinant = (
+            parameters["m_stat"]**2 * parameters["c_stat"]**2
+            - parameters["covariance"]**2
+        )
+        tolerance = 1e-10 * max(
+            parameters["m_stat"]**2 * parameters["c_stat"]**2,
+            parameters["covariance"]**2,
+            1e-30,
+        )
+        if determinant < -tolerance:
+            raise ValueError(
+                f"The {component} fit covariance is not positive semidefinite."
+            )
+
     formula = cs.Formula(
         nodetype="formula",
         expression=expr,
@@ -75,10 +98,10 @@ def formula_object(paramsx, paramsy, expr):
             paramsy["c"],
             paramsx["m_stat"],
             paramsx["c_stat"],
-            paramsx["correlation"],
+            paramsx["covariance"],
             paramsy["m_stat"],
             paramsy["c_stat"],
-            paramsy["correlation"]
+            paramsy["covariance"]
         ],
         parser='TFormula',
         variables=["met_pt", "met_phi", "npvGood"],
@@ -192,7 +215,11 @@ def make_correction_with_formula(corr_dir, year, datamc, mets):
     path = corr_dir.replace(f'{year}/', f'schemaV2_{year}.json')
 
     with open(path, 'w') as fout:
-        fout.write(cset.json(exclude_unset=True, indent=4))
+        if hasattr(cset, "model_dump_json"):
+            serialized = cset.model_dump_json(exclude_unset=True, indent=4)
+        else:
+            serialized = cset.json(exclude_unset=True, indent=4)
+        fout.write(serialized)
 
     logger.info(f'Saved clib file in {path}')
 
