@@ -49,7 +49,8 @@ def main():
             path_dict['datasets'],
             path_dict['nanoAODs'],
             path_dict['redirector'],
-            args.year
+            args.year,
+            datamc,
         )
 
     # step 1: make flat ntuples with necessary information

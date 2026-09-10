@@ -1,13 +1,13 @@
 import json
 import os
-import sys
-import glob
 import logging
+import subprocess
+import tempfile
 
 logger = logging.getLogger(__name__)
 
 
-def get_files_from_das(datasets, nanoAODs, redirector, year):
+def get_files_from_das(datasets, nanoAODs, redirector, year, processes=None):
     '''
     make file lists from DAS identifiers in datasets.json
 
@@ -26,29 +26,56 @@ def get_files_from_das(datasets, nanoAODs, redirector, year):
 
         fdict = {}
 
-        # looping through datasets (DATA, MC)
-        for k in dsets.keys():
+        selected_processes = list(dsets) if processes is None else processes
+        missing = set(selected_processes) - set(dsets)
+        if missing:
+            raise KeyError(
+                f"Processes {sorted(missing)} are not configured for {year}."
+            )
+
+        # looping through selected datasets (DATA, MC)
+        for k in selected_processes:
             fdict[k] = []
 
             # loop through sub datasets
             for d in dsets[k]["names"]:
-                logger.debug(f'dasgoclient -query="file dataset={d}"')
-                stream = os.popen(
-                    f'dasgoclient -query="file dataset={d}"'
+                command = ["dasgoclient", "-query", f"file dataset={d}"]
+                logger.debug("Running %s", command)
+                result = subprocess.run(
+                    command,
+                    check=False,
+                    text=True,
+                    capture_output=True,
                 )
+                if result.returncode != 0:
+                    raise RuntimeError(
+                        f"DAS query failed for {d}: {result.stderr.strip()}"
+                    )
                 fdict[k] += [
-                    redirector +
-                    s.replace('\n', '') for s in stream.readlines()
+                    redirector + line.strip()
+                    for line in result.stdout.splitlines()
+                    if line.strip()
                 ]
 
-        with open(nanoAODs, "w") as f:
-            json.dump(fdict, f, indent=4)
+            if not fdict[k]:
+                raise RuntimeError(
+                    f"DAS returned no files for selected process {k} in "
+                    f"{year}. Refusing to create an empty manifest."
+                )
+
+        output_dir = os.path.dirname(nanoAODs) or "."
+        os.makedirs(output_dir, exist_ok=True)
+        descriptor, temporary = tempfile.mkstemp(
+            prefix=".nanoAODs.", suffix=".json", dir=output_dir
+        )
+        try:
+            with os.fdopen(descriptor, "w") as output:
+                json.dump(fdict, output, indent=4)
+            os.replace(temporary, nanoAODs)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
 
     logger.info(f"File lists saved in {nanoAODs}")
 
     return
-
-
-if __name__=='__main__':
-    datasets = sys.argv[1]
-    get_files_from_das(datasets)
