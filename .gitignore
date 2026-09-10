@@ -7,3 +7,6 @@
 inputs/jsonpog
 inputs/nanoAODs
 results/
+.venv-workflow/
+.snakemake/
+.workflow/
