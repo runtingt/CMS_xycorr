@@ -1,0 +1,302 @@
+import json
+from pathlib import Path
+import re
+
+from snakemake.exceptions import WorkflowError
+
+
+REPO = Path(workflow.basedir).parent.resolve()
+CAMPAIGN_FILES = [str(Path(path).resolve()) for path in workflow.configfiles]
+VERSION = config.get("version", "v1")
+ERAS = config.get("eras", [])
+DEFAULTS = config.get("defaults", {})
+OVERRIDES = config.get("overrides", {})
+CONDOR = config.get("condor", {})
+
+if not ERAS:
+    raise WorkflowError("Campaign configuration must contain at least one era.")
+if len(ERAS) != len(set(ERAS)):
+    raise WorkflowError("Campaign era names must be unique.")
+
+with open(REPO / "inputs/config/datasets.json") as source:
+    known_datasets = json.load(source)
+
+CONFIGURATION_INPUTS = CAMPAIGN_FILES + [
+    str(REPO / "inputs/config/datasets.json"),
+    str(REPO / "inputs/config/paths.py"),
+    str(REPO / "inputs/config/binning.py"),
+    str(REPO / "inputs/config/labels.py"),
+]
+ENTRYPOINT = str(REPO / "get_xy_corrs.py")
+missing_eras = sorted(set(ERAS) - set(known_datasets))
+if missing_eras:
+    raise WorkflowError(f"No datasets configured for: {', '.join(missing_eras)}")
+
+
+def era_settings(era):
+    settings = dict(DEFAULTS)
+    settings.update(OVERRIDES.get(era, {}))
+    settings.setdefault("processes", ["DATA", "MC"])
+    settings.setdefault("mets", ["PuppiMET"])
+    settings.setdefault("pileup", "PV_npvsGood")
+    settings.setdefault("local_threads", 8)
+    if len(settings["pileup"].split(",")) != 1:
+        raise WorkflowError(f"Only one pileup variable is supported for {era}.")
+    configured = set(known_datasets[era])
+    missing = set(settings["processes"]) - configured
+    if missing:
+        raise WorkflowError(
+            f"Processes {sorted(missing)} are not configured for {era}."
+        )
+    return settings
+
+
+SETTINGS = {era: era_settings(era) for era in ERAS}
+ERA_REGEX = "(?:" + "|".join(re.escape(era) for era in ERAS) + ")"
+LOCAL_CORES = max(
+    int(settings["local_threads"]) for settings in SETTINGS.values()
+)
+
+eos_home = str(Path.home()).replace("afs/cern.ch", "eos")
+
+
+def csv(values):
+    return ",".join(values)
+
+
+def histogram_path(era, process):
+    return str(REPO / f"results/hists/{VERSION}/{era}/{process}.root")
+
+
+def correction_path(era, process):
+    return str(REPO / f"results/corrections/{VERSION}/{era}/{process}.json")
+
+
+def schema_path(era):
+    return str(REPO / f"results/corrections/{VERSION}/schemaV2_{era}.json")
+
+
+def validation_marker(era, process):
+    return str(
+        REPO / f"results/workflow/{VERSION}/{era}/{process}/validation.done"
+    )
+
+
+def snapshot_marker(era, process):
+    return str(
+        REPO / f"results/workflow/{VERSION}/{era}/{process}/snapshots.done"
+    )
+
+
+def correction_inputs(wildcards):
+    return [
+        correction_path(wildcards.era, process)
+        for process in SETTINGS[wildcards.era]["processes"]
+    ]
+
+
+def final_targets():
+    targets = [schema_path(era) for era in ERAS]
+    targets.extend(
+        validation_marker(era, process)
+        for era in ERAS
+        for process in SETTINGS[era]["processes"]
+    )
+    return targets
+
+
+localrules: all, discover_inputs, snapshot_batch, histograms, fit_corrections, convert_json, validate
+
+wildcard_constraints:
+    era=ERA_REGEX,
+    process="DATA|MC",
+
+
+rule all:
+    input:
+        final_targets()
+
+
+rule discover_inputs:
+    input:
+        configuration=CONFIGURATION_INPUTS,
+        entrypoint=ENTRYPOINT,
+        code=str(REPO / "python/tools/das_query.py"),
+    output:
+        str(REPO / "inputs/nanoAODs/{era}.json")
+    log:
+        str(REPO / f"results/workflow/logs/{VERSION}/discover/{{era}}.log")
+    params:
+        version=VERSION,
+        processes=lambda wc: csv(SETTINGS[wc.era]["processes"]),
+        mets=lambda wc: csv(SETTINGS[wc.era]["mets"]),
+    shell:
+        "mkdir -p $(dirname {log}) && "
+        "(source env.sh && python3 get_xy_corrs.py --prep "
+        "--version {params.version} "
+        "--year {wildcards.era} --processes {params.processes} "
+        "--met {params.mets}) > {log} 2>&1"
+
+
+rule snapshot_batch:
+    input:
+        manifest=str(REPO / "inputs/nanoAODs/{era}.json"),
+        configuration=CONFIGURATION_INPUTS,
+        entrypoint=ENTRYPOINT,
+        snapshot_code=str(REPO / "python/correction/snapshot_maker.py"),
+        filters=str(REPO / "python/tools/filters.py"),
+        batch_code=str(REPO / "workflow/scripts/condor_snapshot_batch.py"),
+        proxy_code=str(REPO / "workflow/scripts/stage_proxy.py"),
+    output:
+        str(
+            REPO / f"results/workflow/{VERSION}/"
+            "{era}/{process}/snapshots.done"
+        )
+    log:
+        str(
+            REPO / f"results/workflow/logs/{VERSION}/snapshot_batch/"
+            "{era}_{process}.log"
+        )
+    params:
+        version=VERSION,
+        mets=lambda wc: csv(SETTINGS[wc.era]["mets"]),
+        pileup=lambda wc: SETTINGS[wc.era]["pileup"],
+        snapshot_dir=lambda wc: (
+            f"{eos_home}/CMS_xycorr/snapshots/{VERSION}/"
+            f"{wc.era}/{wc.process}"
+        ),
+        state=lambda wc: str(
+            REPO / f".snakemake/condor-arrays/{VERSION}_"
+            f"{wc.era}_{wc.process}.json"
+        ),
+        condor_log_dir=lambda wc: str(
+            REPO / f"results/condor/snakemake/snapshot/"
+            f"{VERSION}_{wc.era}_{wc.process}"
+        ),
+        cpus=int(CONDOR.get("request_cpus", 1)),
+        memory_mb=int(CONDOR.get("request_memory_mb", 2000)),
+        disk_mb=int(CONDOR.get("request_disk_mb", 2000)),
+        job_flavour=CONDOR.get("job_flavour", "microcentury"),
+        max_materialize=int(CONDOR.get("max_jobs", 200)),
+        repo=str(REPO),
+    threads: 1
+    shell:
+        "mkdir -p $(dirname {log}) && "
+        "(source env.sh && python3 {input.batch_code} "
+        "--manifest {input.manifest} --era {wildcards.era} "
+        "--process {wildcards.process} --version {params.version} "
+        "--mets {params.mets} --pileup {params.pileup} "
+        "--snapshot-dir {params.snapshot_dir} --marker {output} "
+        "--state {params.state} --log-dir {params.condor_log_dir} "
+        "--repo {params.repo} --proxy $X509_USER_PROXY "
+        "--cpus {params.cpus} --memory-mb {params.memory_mb} "
+        "--disk-mb {params.disk_mb} "
+        "--job-flavour {params.job_flavour} "
+        "--max-materialize {params.max_materialize}) > {log} 2>&1"
+
+
+rule histograms:
+    input:
+        snapshots=lambda wc: snapshot_marker(wc.era, wc.process),
+        configuration=CONFIGURATION_INPUTS,
+        entrypoint=ENTRYPOINT,
+        code=str(REPO / "python/correction/histograms.py"),
+    output:
+        str(REPO / f"results/hists/{VERSION}/{{era}}/{{process}}.root")
+    log:
+        str(
+            REPO / f"results/workflow/logs/{VERSION}/histograms/"
+            "{era}_{process}.log"
+        )
+    params:
+        version=VERSION,
+        mets=lambda wc: csv(SETTINGS[wc.era]["mets"]),
+        pileup=lambda wc: SETTINGS[wc.era]["pileup"],
+    threads:
+        lambda wc: int(SETTINGS[wc.era]["local_threads"])
+    shell:
+        "mkdir -p $(dirname {log}) && "
+        "(source env.sh && python3 get_xy_corrs.py --hists --skip_check "
+        "--version {params.version} "
+        "--year {wildcards.era} --processes {wildcards.process} "
+        "--met {params.mets} --pileup {params.pileup} --jobs {threads}) "
+        "> {log} 2>&1"
+
+
+rule fit_corrections:
+    input:
+        histogram=lambda wc: histogram_path(wc.era, wc.process),
+        configuration=CONFIGURATION_INPUTS,
+        entrypoint=ENTRYPOINT,
+        code=str(REPO / "python/correction/correction_extractor.py"),
+        plotting=str(REPO / "python/tools/plot.py"),
+    output:
+        str(REPO / f"results/corrections/{VERSION}/{{era}}/{{process}}.json")
+    log:
+        str(
+            REPO / f"results/workflow/logs/{VERSION}/fit/"
+            "{era}_{process}.log"
+        )
+    params:
+        version=VERSION,
+        mets=lambda wc: csv(SETTINGS[wc.era]["mets"]),
+        pileup=lambda wc: SETTINGS[wc.era]["pileup"],
+    shell:
+        "mkdir -p $(dirname {log}) && "
+        "(source env.sh && python3 get_xy_corrs.py --corr "
+        "--version {params.version} "
+        "--year {wildcards.era} --processes {wildcards.process} "
+        "--met {params.mets} --pileup {params.pileup}) > {log} 2>&1"
+
+
+rule convert_json:
+    input:
+        corrections=correction_inputs,
+        configuration=CONFIGURATION_INPUTS,
+        entrypoint=ENTRYPOINT,
+        code=str(REPO / "python/correction/convert2json.py"),
+    output:
+        str(REPO / f"results/corrections/{VERSION}/schemaV2_{{era}}.json")
+    log:
+        str(REPO / f"results/workflow/logs/{VERSION}/convert/{{era}}.log")
+    params:
+        version=VERSION,
+        processes=lambda wc: csv(SETTINGS[wc.era]["processes"]),
+        mets=lambda wc: csv(SETTINGS[wc.era]["mets"]),
+    shell:
+        "mkdir -p $(dirname {log}) && "
+        "(source env.sh && python3 get_xy_corrs.py --convert "
+        "--version {params.version} "
+        "--year {wildcards.era} --processes {params.processes} "
+        "--met {params.mets}) > {log} 2>&1"
+
+
+rule validate:
+    input:
+        snapshots=lambda wc: snapshot_marker(wc.era, wc.process),
+        schema=lambda wc: schema_path(wc.era),
+        configuration=CONFIGURATION_INPUTS,
+        entrypoint=ENTRYPOINT,
+        code=str(REPO / "python/correction/validate.py"),
+        plotting=str(REPO / "python/tools/plot.py"),
+    output:
+        hist=str(REPO / f"results/hists/{VERSION}/{{era}}/validation_{{process}}.root"),
+        done=str(REPO / f"results/workflow/{VERSION}/{{era}}/{{process}}/validation.done"),
+    log:
+        str(
+            REPO / f"results/workflow/logs/{VERSION}/validate/"
+            "{era}_{process}.log"
+        )
+    params:
+        version=VERSION,
+        mets=lambda wc: csv(SETTINGS[wc.era]["mets"]),
+    threads:
+        lambda wc: int(SETTINGS[wc.era]["local_threads"])
+    shell:
+        "mkdir -p $(dirname {log}) && "
+        "(source env.sh && python3 get_xy_corrs.py --validate "
+        "--version {params.version} "
+        "--year {wildcards.era} --processes {wildcards.process} "
+        "--met {params.mets} --jobs {threads} && "
+        "mkdir -p $(dirname {output.done}) && touch {output.done}) "
+        "> {log} 2>&1"

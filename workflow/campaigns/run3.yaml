@@ -1,0 +1,24 @@
+campaign: run3_met_xy
+version: v2
+
+eras:
+  - 2022_Summer22
+  - 2022_Summer22EE
+  - 2023_Summer23
+  - 2023_Summer23BPix
+  - 2024_Summer24
+
+defaults:
+  processes: [DATA, MC]
+  mets: [PuppiMET]
+  pileup: PV_npvsGood
+  local_threads: 8
+
+overrides: {}
+
+condor:
+  max_jobs: 2000
+  request_cpus: 1
+  request_memory_mb: 3000
+  request_disk_mb: 5000
+  job_flavour: microcentury

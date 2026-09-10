@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${repo_root}/env.sh"
+
+if [[ ! -d "${repo_root}/.venv-workflow" ]]; then
+    python3 -m venv --system-site-packages "${repo_root}/.venv-workflow"
+fi
+
+source "${repo_root}/.venv-workflow/bin/activate"
+python3 -m pip install -r "${repo_root}/workflow/requirements.txt"
+
+python3 - <<'PY'
+import ROOT
+import correctionlib
+import snakemake
+
+print(f"ROOT {ROOT.gROOT.GetVersion()}")
+print(f"correctionlib {correctionlib.__version__}")
+print(f"Snakemake {snakemake.__version__}")
+PY

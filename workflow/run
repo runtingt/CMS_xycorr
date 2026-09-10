@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+campaign=""
+args=()
+needs_proxy=true
+
+while (($#)); do
+    case "$1" in
+        --campaign)
+            if (($# < 2)); then
+                echo "--campaign requires a YAML file" >&2
+                exit 2
+            fi
+            campaign="$2"
+            shift 2
+            ;;
+        *)
+            case "$1" in
+                --dry-run|--dryrun|-n|--summary|--detailed-summary|--lint|\
+                --list-rules|--list-target-rules|--dag|--rulegraph|\
+                --filegraph|--d3dag)
+                    needs_proxy=false
+                    ;;
+            esac
+            args+=("$1")
+            shift
+            ;;
+    esac
+done
+
+if [[ -z "${campaign}" ]]; then
+    echo "Usage: workflow/run --campaign workflow/campaigns/run3.yaml [snakemake options]" >&2
+    exit 2
+fi
+if [[ ! -f "${repo_root}/${campaign}" && ! -f "${campaign}" ]]; then
+    echo "Campaign file not found: ${campaign}" >&2
+    exit 2
+fi
+if [[ -f "${repo_root}/${campaign}" ]]; then
+    campaign="${repo_root}/${campaign}"
+fi
+
+source "${repo_root}/env.sh"
+if [[ ! -x "${repo_root}/.venv-workflow/bin/snakemake" ]]; then
+    echo "Workflow environment is missing. Run workflow/bootstrap first." >&2
+    exit 2
+fi
+
+if [[ "${needs_proxy}" == true ]]; then
+    proxy_source="$(voms-proxy-info -path 2>/dev/null || true)"
+    proxy_time="$(
+        voms-proxy-info -file "${proxy_source}" -timeleft 2>/dev/null || echo 0
+    )"
+    if [[ -z "${proxy_source}" || ! -f "${proxy_source}" || "${proxy_time}" -lt 7200 ]]; then
+        echo "A VOMS proxy valid for at least two hours is required." >&2
+        echo "Create one with: voms-proxy-init --voms cms --valid 192:00 -rfc" >&2
+        exit 2
+    fi
+
+    # The CERN access point cannot read a login-node-local /tmp proxy when it
+    # later transfers credentials to an execute node. Keep an atomic private
+    # copy in AFS and give HTCondor that shared path instead.
+    proxy_destination="${HOME}/proxy/x509up_u$(id -u)"
+    proxy_path="$(
+        python3 "${repo_root}/workflow/scripts/stage_proxy.py" \
+            "${proxy_source}" "${proxy_destination}"
+    )"
+    staged_proxy_time="$(
+        voms-proxy-info -file "${proxy_path}" -timeleft 2>/dev/null || echo 0
+    )"
+    if [[ "${staged_proxy_time}" -lt 7200 ]]; then
+        echo "The staged VOMS proxy is invalid: ${proxy_path}" >&2
+        exit 2
+    fi
+    export X509_USER_PROXY="${proxy_path}"
+fi
+
+campaign_cores="$(python3 -c '
+import sys, yaml
+cfg = yaml.safe_load(open(sys.argv[1]))
+default = cfg.get("defaults", {}).get("local_threads", 8)
+values = [default] + [
+    item.get("local_threads", default)
+    for item in cfg.get("overrides", {}).values()
+]
+print(max(map(int, values)))
+' "${campaign}")"
+
+cd "${repo_root}"
+exec snakemake \
+    --snakefile workflow/Snakefile \
+    --configfile "${campaign}" \
+    --profile workflow/profiles/condor \
+    --cores "${campaign_cores}" \
+    "${args[@]}"
