@@ -1,0 +1,9 @@
+executor: local
+latency-wait: 90
+keep-going: true
+rerun-triggers:
+  - mtime
+  - input
+  - params
+  - software-env
+  - code
