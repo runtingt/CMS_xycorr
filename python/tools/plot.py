@@ -201,3 +201,62 @@ def plot_ratio(
     c.SaveAs(outfile.split(".pdf")[0]+".png")
 
     return 
+
+
+def plot_profile_closure(
+    profile,
+    outfile,
+    axis=("NPV", "MET component (GeV)"),
+    lumi="",
+    dsetlabel="",
+):
+    """Plot a corrected MET-component profile and its residual linear fit."""
+    canvas = ROOT.TCanvas("closure_canvas", "", 800, 600)
+    ROOT.gROOT.SetBatch(1)
+    ROOT.gPad.SetGrid()
+
+    profile.SetStats(0)
+    profile.SetTitle("")
+    profile.SetLineWidth(2)
+    profile.SetMarkerStyle(20)
+    profile.SetMarkerSize(0.7)
+    profile.GetXaxis().SetRangeUser(0, 100)
+    profile.GetXaxis().SetTitle(axis[0])
+    profile.GetYaxis().SetTitle(axis[1])
+
+    fit = ROOT.TF1(f"closure_plot_{profile.GetName()}", "[0]*x+[1]", 10, 70)
+    result = profile.Fit(fit, "Q0RS", "", 10, 70)
+    if int(result) != 0:
+        raise RuntimeError(
+            f"Closure fit failed for {profile.GetName()} with status {int(result)}."
+        )
+    profile.Draw("E1")
+    fit.SetLineColor(ROOT.kRed)
+    fit.Draw("same")
+
+    zero = ROOT.TLine(0, 0, 100, 0)
+    zero.SetLineStyle(2)
+    zero.Draw("same")
+
+    label = ROOT.TLatex()
+    label.SetNDC()
+    label.SetTextFont(42)
+    label.SetTextSize(0.04)
+    label.DrawLatex(0.11, 0.915, '#bf{CMS} #it{Preliminary}')
+    label.SetTextAlign(31)
+    label.DrawLatex(0.88, 0.915, lumi)
+    label.SetTextAlign(11)
+    label.SetTextSize(0.03)
+    label.DrawLatex(0.14, 0.84, dsetlabel)
+    label.DrawLatex(
+        0.14,
+        0.79,
+        (
+            f"slope = {fit.GetParameter(0):+.3g} #pm "
+            f"{fit.GetParError(0):.2g} GeV/vertex"
+        ),
+    )
+
+    os.makedirs(os.path.dirname(outfile), exist_ok=True)
+    canvas.SaveAs(outfile + '.png')
+    canvas.SaveAs(outfile + '.pdf')

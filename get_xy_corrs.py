@@ -118,7 +118,8 @@ def main():
             datamc,
             args.year,
             hbins,
-            mets
+            mets,
+            args.jobs,
         )
         make_validation_plots(
             path_dict['hist_dir'],
@@ -135,6 +136,3 @@ def main():
 
 if __name__=='__main__':
     main()
-
-# TODO: how to deal with stat unc in data?
-# TODO: implement processing for several years at once
